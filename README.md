@@ -65,9 +65,14 @@ go build
 
 ## Development
 
+Linting requires [golangci-lint](https://golangci-lint.run/docs/welcome/install/)
+in your `PATH`.
+
 ```sh
-go vet ./...
-go test ./...
+make help    # list the available targets
+make fmt     # format the code (fixes most lint issues)
+make check   # run every quality check, the same as CI
+make build   # build the fromscope binary
 ```
 
 ## License
