@@ -1,0 +1,12 @@
+# Binary
+/fromscope
+/dist/
+
+# Go
+*.test
+*.out
+coverage.*
+
+# IDE
+.idea/
+.vscode/
