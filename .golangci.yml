@@ -1,0 +1,33 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  # standard = errcheck, govet, ineffassign, staticcheck, unused
+  default: standard
+  enable:
+    - bodyclose   # resp.Body must be closed
+    - errorlint   # correct use of errors.Is/As and %w
+    - gocritic    # style, performance and bug-prone patterns
+    - gosec       # security (HTTP server timeouts, file paths, templates...)
+    - misspell    # typos in comments and strings
+    - noctx       # HTTP requests without context
+    - revive      # golint replacement (naming, doc comments...)
+    - unconvert   # unnecessary type conversions
+    - unparam     # unused function parameters
+  settings:
+    misspell:
+      locale: US
+  exclusions:
+    presets:
+      - std-error-handling
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/angelabad/fromscope
