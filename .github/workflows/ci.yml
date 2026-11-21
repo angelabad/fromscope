@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Quality checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod   # single source of truth for the Go version
+
+      - name: Install golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.15        # minor version; the action picks the latest patch
+          install-only: true
+
+      - name: go.mod is tidy
+        run: make tidy-check
+
+      - name: Verify modules
+        run: make verify
+
+      - name: Lint
+        run: make lint
+
+      - name: Test
+        run: make test
+
+      - name: Vulnerabilities
+        run: make vuln
+
+      - name: Build
+        run: make build
