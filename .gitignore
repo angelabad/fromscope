@@ -1,0 +1,16 @@
+# Binary
+/fromscope
+/dist/
+
+# Go
+*.test
+*.out
+coverage.*
+
+# IDE
+.idea/
+.vscode/
+
+# Data: real CSVs may contain internal hostnames; only test fixtures are tracked
+*.csv
+!testdata/*.csv
