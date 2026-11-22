@@ -1,0 +1,9 @@
+{{range .Rows}}
+<tr class="even:bg-slate-50/60 hover:bg-sky-50">
+  {{range .}}<td class="border-b border-slate-100 px-3 py-2 align-top">{{if .}}{{.}}{{else}}<span class="text-slate-300">—</span>{{end}}</td>{{end}}
+</tr>
+{{else}}
+<tr>
+  <td colspan="{{len $.Columns}}" class="px-3 py-12 text-center text-slate-500">No matching rows</td>
+</tr>
+{{end}}

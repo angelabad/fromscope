@@ -5,12 +5,14 @@ package main
 import (
 	"flag"
 	"log"
+	"net/http"
 	"os"
+	"time"
 )
 
 var (
 	csvPath = flag.String("csv", "", "CSV file to load (required)")
-	addr    = flag.String("addr", ":8080", "TCP address to listen on") //nolint:unused // used once the web server lands
+	addr    = flag.String("addr", ":8080", "TCP address to listen on")
 )
 
 func main() {
@@ -37,4 +39,16 @@ func main() {
 
 	log.Printf("loaded %d rows (dropped %d without FROM), columns: %q",
 		len(table.Rows), dropped, table.Columns)
+
+	srv := &http.Server{
+		Addr:              *addr,
+		Handler:           newServer(table).routes(),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+
+	log.Printf("listening on %s", *addr)
+	log.Fatal(srv.ListenAndServe())
 }
