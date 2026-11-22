@@ -30,6 +30,11 @@ func main() {
 		log.Fatalf("dropping rows: %v", err)
 	}
 
+	err = table.DropColumn(fromColumn)
+	if err != nil {
+		log.Fatalf("dropping column: %v", err)
+	}
+
 	log.Printf("loaded %d rows (dropped %d without FROM), columns: %q",
 		len(table.Rows), dropped, table.Columns)
 }

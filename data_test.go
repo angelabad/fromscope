@@ -149,3 +149,68 @@ func TestDropRows(t *testing.T) {
 		}
 	})
 }
+
+func TestDropColumn(t *testing.T) {
+	newTable := func() *Table {
+		return &Table{
+			Columns: []string{"repo", "has_from", "image"},
+			Rows: [][]string{
+				{"a", "yes", "alpine"},
+				{"b", "no", "debian"},
+			},
+		}
+	}
+
+	tests := []struct {
+		name        string
+		column      string
+		wantColumns []string
+		wantRows    [][]string
+	}{
+		{
+			name:        "middle column",
+			column:      "has_from",
+			wantColumns: []string{"repo", "image"},
+			wantRows:    [][]string{{"a", "alpine"}, {"b", "debian"}},
+		},
+		{
+			name:        "first column",
+			column:      "repo",
+			wantColumns: []string{"has_from", "image"},
+			wantRows:    [][]string{{"yes", "alpine"}, {"no", "debian"}},
+		},
+		{
+			name:        "last column",
+			column:      "image",
+			wantColumns: []string{"repo", "has_from"},
+			wantRows:    [][]string{{"a", "yes"}, {"b", "no"}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			table := newTable()
+
+			if err := table.DropColumn(tt.column); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !slices.Equal(table.Columns, tt.wantColumns) {
+				t.Errorf("columns = %q, want %q", table.Columns, tt.wantColumns)
+			}
+			if !slices.EqualFunc(table.Rows, tt.wantRows, slices.Equal) {
+				t.Errorf("rows = %q, want %q", table.Rows, tt.wantRows)
+			}
+		})
+	}
+
+	t.Run("unknown column", func(t *testing.T) {
+		table := newTable()
+
+		if err := table.DropColumn("missing"); err == nil {
+			t.Fatal("expected an error, got nil")
+		}
+		if len(table.Columns) != 3 || len(table.Rows[0]) != 3 {
+			t.Errorf("table changed: columns = %q, rows = %q", table.Columns, table.Rows)
+		}
+	})
+}

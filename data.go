@@ -86,3 +86,20 @@ func (t *Table) DropRows(column, value string) (int, error) {
 
 	return before - len(t.Rows), nil
 }
+
+// DropColumn removes the named column from Columns and from every row.
+// It returns an error, leaving the table unchanged, if the column doesn't exist.
+func (t *Table) DropColumn(column string) error {
+	idx := t.ColumnIndex(column)
+	if idx == -1 {
+		return fmt.Errorf("column %q not found", column)
+	}
+
+	t.Columns = slices.Delete(t.Columns, idx, idx+1)
+
+	for i, row := range t.Rows {
+		t.Rows[i] = slices.Delete(row, idx, idx+1)
+	}
+
+	return nil
+}
