@@ -22,6 +22,10 @@ const (
 	noFromValue = "no"
 )
 
+// dropdownColumns are filtered with a dropdown of their distinct values
+// and an exact match, instead of a free-text "contains" search.
+var dropdownColumns = []string{"rama"}
+
 // ParseCSV reads a CSV with a header line from r.
 // Every row must have the same number of fields as the header.
 func ParseCSV(r io.Reader) (*Table, error) {
