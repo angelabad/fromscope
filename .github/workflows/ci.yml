@@ -35,6 +35,17 @@ jobs:
       - name: Verify modules
         run: make verify
 
+      - name: Install Tailwind CSS
+        env:
+          TAILWIND_VERSION: v4.3.5   # keep in sync with the header of static/app.css
+        run: |
+          curl -sSfL -o "$RUNNER_TEMP/tailwindcss" \
+            "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/tailwindcss-linux-x64"
+          chmod +x "$RUNNER_TEMP/tailwindcss"
+
+      - name: CSS is up to date
+        run: make css-check TAILWIND="$RUNNER_TEMP/tailwindcss"
+
       - name: Lint
         run: make lint
 
