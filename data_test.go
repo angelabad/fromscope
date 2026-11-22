@@ -214,3 +214,142 @@ func TestDropColumn(t *testing.T) {
 		}
 	})
 }
+
+// newFilterTable returns a table for the Filter and Values tests.
+// "develop" and "development" check that Equals is an exact match.
+func newFilterTable() *Table {
+	return &Table{
+		Columns: []string{"repo", "rama", "imagen"},
+		Rows: [][]string{
+			{"aem-atc", "master", "cypress/included:13.14.1"},
+			{"web", "develop", "node:20-alpine"},
+			{"api", "development", "Alpine:3.20"},
+			{"api", "master", ""},
+		},
+	}
+}
+
+func TestFilter(t *testing.T) {
+	tests := []struct {
+		name   string
+		filter Filter
+		want   []string // "repo/rama" of the expected rows, in order
+	}{
+		{
+			name:   "empty filter keeps every row",
+			filter: Filter{},
+			want:   []string{"aem-atc/master", "web/develop", "api/development", "api/master"},
+		},
+		{
+			name:   "query is case-insensitive",
+			filter: Filter{Query: "ALPINE"},
+			want:   []string{"web/develop", "api/development"},
+		},
+		{
+			name:   "query matches any column",
+			filter: Filter{Query: "master"},
+			want:   []string{"aem-atc/master", "api/master"},
+		},
+		{
+			name:   "contains is case-insensitive",
+			filter: Filter{Contains: map[string]string{"imagen": "alpine"}},
+			want:   []string{"web/develop", "api/development"},
+		},
+		{
+			name:   "contains only looks at its column",
+			filter: Filter{Contains: map[string]string{"repo": "master"}},
+			want:   []string{},
+		},
+		{
+			name:   "equals is an exact match",
+			filter: Filter{Equals: map[string]string{"rama": "develop"}},
+			want:   []string{"web/develop"},
+		},
+		{
+			name:   "equals is case-sensitive",
+			filter: Filter{Equals: map[string]string{"rama": "Master"}},
+			want:   []string{},
+		},
+		{
+			name: "every criterion must match",
+			filter: Filter{
+				Query:    "alpine",
+				Contains: map[string]string{"repo": "api"},
+				Equals:   map[string]string{"rama": "development"},
+			},
+			want: []string{"api/development"},
+		},
+		{
+			name: "empty values are ignored",
+			filter: Filter{
+				Contains: map[string]string{"repo": ""},
+				Equals:   map[string]string{"rama": ""},
+			},
+			want: []string{"aem-atc/master", "web/develop", "api/development", "api/master"},
+		},
+		{
+			name: "unknown columns are ignored",
+			filter: Filter{
+				Contains: map[string]string{"nope": "x"},
+				Equals:   map[string]string{"nope": "x"},
+			},
+			want: []string{"aem-atc/master", "web/develop", "api/development", "api/master"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			table := newFilterTable()
+
+			got := table.Filter(tt.filter)
+
+			if !slices.Equal(got.Columns, table.Columns) {
+				t.Errorf("Columns = %q, want %q", got.Columns, table.Columns)
+			}
+			keys := []string{}
+			for _, row := range got.Rows {
+				keys = append(keys, row[0]+"/"+row[1])
+			}
+			if !slices.Equal(keys, tt.want) {
+				t.Errorf("rows = %q, want %q", keys, tt.want)
+			}
+		})
+	}
+}
+
+func TestFilterDoesNotModifyTable(t *testing.T) {
+	table := newFilterTable()
+	want := newFilterTable()
+
+	got := table.Filter(Filter{Equals: map[string]string{"rama": "master"}})
+
+	if len(got.Rows) != 2 {
+		t.Fatalf("got %d rows, want 2", len(got.Rows))
+	}
+	if !slices.EqualFunc(table.Rows, want.Rows, slices.Equal) {
+		t.Errorf("Filter modified the table rows: %q", table.Rows)
+	}
+	if !slices.Equal(table.Columns, want.Columns) {
+		t.Errorf("Filter modified the table columns: %q", table.Columns)
+	}
+}
+
+func TestValues(t *testing.T) {
+	tests := []struct {
+		column string
+		want   []string
+	}{
+		{"rama", []string{"develop", "development", "master"}},                            // sorted and distinct
+		{"imagen", []string{"Alpine:3.20", "cypress/included:13.14.1", "node:20-alpine"}}, // no empty value
+		{"nope", nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.column, func(t *testing.T) {
+			got := newFilterTable().Values(tt.column)
+			if !slices.Equal(got, tt.want) || (tt.want == nil) != (got == nil) {
+				t.Errorf("Values(%q) = %#v, want %#v", tt.column, got, tt.want)
+			}
+		})
+	}
+}

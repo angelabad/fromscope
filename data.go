@@ -103,3 +103,98 @@ func (t *Table) DropColumn(column string) error {
 
 	return nil
 }
+
+// Filter holds the criteria used to select rows. A row is kept only if
+// it matches every criterion; empty values and unknown columns are ignored.
+type Filter struct {
+	Query    string            // case-insensitive substring of any cell
+	Contains map[string]string // column name -> case-insensitive substring
+	Equals   map[string]string // column name -> exact value
+}
+
+// Filter returns a new table with the rows that match f.
+// The receiver is never modified.
+func (t *Table) Filter(f Filter) *Table {
+	var conds []condition
+
+	for col, v := range f.Contains {
+		idx := t.ColumnIndex(col)
+		if idx == -1 || v == "" {
+			continue
+		}
+
+		conds = append(conds, condition{idx: idx, value: strings.ToLower(v), exact: false})
+	}
+
+	for col, v := range f.Equals {
+		idx := t.ColumnIndex(col)
+		if idx == -1 || v == "" {
+			continue
+		}
+
+		conds = append(conds, condition{idx: idx, value: v, exact: true})
+	}
+
+	query := strings.ToLower(f.Query)
+
+	rows := make([][]string, 0, len(t.Rows))
+
+	for _, row := range t.Rows {
+		if matchRow(row, query, conds) {
+			rows = append(rows, row)
+		}
+	}
+
+	return &Table{Columns: t.Columns, Rows: rows}
+}
+
+// condition is a Filter criterion resolved against a table's columns.
+type condition struct {
+	idx   int    // column index in each row
+	value string // lowercased when exact is false
+	exact bool   // true: cell == value; false: lowercased cell contains value
+}
+
+// matchRow reports whether row meets every condition and, if query
+// is not empty, has a cell that contains it.
+func matchRow(row []string, query string, conds []condition) bool {
+	for _, c := range conds {
+		cell := row[c.idx]
+		if c.exact {
+			if cell != c.value {
+				return false
+			}
+		} else if !strings.Contains(strings.ToLower(cell), c.value) {
+			return false
+		}
+	}
+
+	if query == "" {
+		return true
+	}
+
+	return slices.ContainsFunc(row, func(cell string) bool {
+		return strings.Contains(strings.ToLower(cell), query)
+	})
+}
+
+// Values returns the distinct non-empty values of column, sorted.
+// It returns nil if the column doesn't exist.
+func (t *Table) Values(column string) []string {
+	idx := t.ColumnIndex(column)
+	if idx == -1 {
+		return nil
+	}
+
+	var values []string
+
+	for _, row := range t.Rows {
+		if row[idx] != "" {
+			values = append(values, row[idx])
+		}
+	}
+
+	slices.Sort(values)
+
+	return slices.Compact(values)
+}
