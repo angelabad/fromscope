@@ -18,11 +18,11 @@ load any CSV and offer filtering and grouping on arbitrary columns.
 Early development. What works today:
 
 - Loading a CSV file with a header row into memory.
-- Dropping rows whose `tiene_from` column is `no`.
+- Dropping rows whose `tiene_from` column is `no`, then hiding that column.
+- Serving the resulting table as a web page on `-addr` (default `:8080`).
 
 Planned:
 
-- Web interface to browse the data (served on `-addr`, default `:8080`).
 - Filters and groupings by column.
 - Support for arbitrary CSV formats.
 
@@ -30,7 +30,8 @@ Planned:
 
 - First line is a header with the column names (surrounding spaces are trimmed).
 - Every row must have the same number of fields as the header.
-- A `tiene_from` column must exist; rows where it equals `no` are discarded.
+- A `tiene_from` column must exist; rows where it equals `no` are discarded,
+  and the column itself is not shown in the web view.
 
 Example:
 
@@ -56,12 +57,14 @@ go build
 ./fromscope -csv path/to/file.csv
 ```
 
+Then open <http://localhost:8080> in your browser.
+
 ### Flags
 
 | Flag    | Default | Description                         |
 |---------|---------|-------------------------------------|
 | `-csv`  | —       | CSV file to load (required)         |
-| `-addr` | `:8080` | TCP address to listen on (planned)  |
+| `-addr` | `:8080` | TCP address to listen on            |
 
 ## Development
 
@@ -73,7 +76,19 @@ make help    # list the available targets
 make fmt     # format the code (fixes most lint issues)
 make check   # run every quality check, the same as CI
 make build   # build the fromscope binary
+make css     # rebuild static/app.css after changing classes in templates/
 ```
+
+The stylesheet is built with the [Tailwind CSS](https://tailwindcss.com/docs/installation/tailwind-cli)
+v4 standalone CLI (override the binary with `make css TAILWIND=/path/to/tailwindcss`).
+The generated `static/app.css` is committed, so building the Go binary does not
+require Tailwind. CI runs `make css-check` to make sure it matches the templates;
+use the same Tailwind version as CI (pinned in `.github/workflows/ci.yml`), since
+the output is compared byte for byte.
+
+[htmx](https://htmx.org/) 4.0.2 is vendored in `static/htmx.min.js` (the
+minified file does not include its version). To update it, replace the file
+with the `dist/htmx.min.js` of the new release and change the version here.
 
 ## License
 
