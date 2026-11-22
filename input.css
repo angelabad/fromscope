@@ -1,0 +1,5 @@
+/* Tailwind CSS v4 entry point. Build static/app.css with: make css */
+
+/* Only scan the templates for class names (not static/, the CSV, etc.). */
+@import "tailwindcss" source(none);
+@source "./templates";
