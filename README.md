@@ -20,10 +20,11 @@ Early development. What works today:
 - Loading a CSV file with a header row into memory.
 - Dropping rows whose `tiene_from` column is `no`, then hiding that column.
 - Serving the resulting table as a web page on `-addr` (default `:8080`).
+- Filtering the table from the page, without reloading it (see [Filtering](#filtering)).
 
 Planned:
 
-- Filters and groupings by column.
+- Groupings by column.
 - Support for arbitrary CSV formats.
 
 ## Expected CSV format
@@ -58,6 +59,26 @@ go build
 ```
 
 Then open <http://localhost:8080> in your browser.
+
+### Filtering
+
+The page has a global search box and a filter under each column header.
+Results update as you type, and the row counter shows how many rows match
+out of the total. A row is shown only if it matches every filter:
+
+- **Search box**: case-insensitive substring of any cell in the row.
+- **Column filters**: case-insensitive substring of that column.
+- **`rama` column**: a dropdown with its distinct values, matched exactly.
+
+The filtered rows are served by `GET /rows` as an HTML fragment, which the page calls through
+htmx. It takes the same criteria as query parameters (`q` for the search, and
+one parameter per column name), so it can also be used directly:
+
+```sh
+curl 'http://localhost:8080/rows?q=alpine&rama=master'
+```
+
+Empty parameters and unknown column names are ignored.
 
 ### Flags
 
