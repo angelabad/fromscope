@@ -10,6 +10,9 @@
 <body class="bg-slate-50 text-slate-800 antialiased">
   <main class="mx-auto max-w-screen-2xl px-4 py-6 sm:px-6 lg:px-8">
     <form hx-get="/rows" hx-target="#rows" hx-trigger="input delay:300ms, submit" hx-sync="this:replace">
+      <!-- Default button for Enter: without it, the browser would submit
+           with the first sort button and change the order. -->
+      <button type="submit" hidden></button>
       <header class="mb-4 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 class="text-xl font-semibold tracking-tight text-slate-900">fromscope</h1>
@@ -25,9 +28,7 @@
       <div class="max-h-[calc(100vh-9rem)] overflow-auto rounded-lg border border-slate-200 bg-white shadow-sm">
         <table class="min-w-full border-separate border-spacing-0 text-left text-sm">
           <thead class="sticky top-0 z-10 bg-slate-100 text-xs font-semibold uppercase tracking-wide text-slate-600">
-            <tr>
-              {{range .Columns}}<th scope="col" class="whitespace-nowrap border-b border-slate-200 px-3 py-2.5">{{.}}</th>{{end}}
-            </tr>
+            <tr id="head">{{template "head.html" .}}</tr>
             <tr>
               {{range .Columns}}
               <td class="border-b border-slate-200 bg-white px-2 py-1.5 font-normal normal-case tracking-normal">

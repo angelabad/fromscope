@@ -66,16 +66,21 @@ func (s *server) handleIndex(w http.ResponseWriter, _ *http.Request) {
 }
 
 // handleRows renders only the rows that match the query parameters,
-// plus the row counter as an out-of-band swap.
+// sorted as they ask, plus the row counter and the header row as
+// out-of-band swaps.
 func (s *server) handleRows(w http.ResponseWriter, r *http.Request) {
-	f := filterFromQuery(r.URL.Query(), s.table.Columns)
+	q := r.URL.Query()
 
-	filtered := s.table.Filter(f)
+	f := filterFromQuery(q, s.table.Columns)
+	order := sortFromQuery(q, s.table.Columns)
+
+	rows := s.table.Filter(f).Sort(order)
 
 	render(w, "results.html", view{
-		Columns: filtered.Columns,
-		Rows:    filtered.Rows,
+		Columns: rows.Columns,
+		Rows:    rows.Rows,
 		Total:   len(s.table.Rows),
+		Sort:    order,
 	})
 }
 
@@ -104,11 +109,38 @@ func filterFromQuery(q url.Values, columns []string) Filter {
 	return f
 }
 
+// sortFromQuery builds a Sort from the query parameters: sort and dir
+// hold the current order, and by is the column header that was clicked.
+// Clicking the column that is sorted ascending sorts it descending;
+// clicking any other column, or the same one again, sorts it ascending.
+// It returns the zero Sort if the column doesn't exist.
+func sortFromQuery(q url.Values, columns []string) Sort {
+	s := Sort{
+		Column: q.Get("sort"),
+		Desc:   q.Get("dir") == "desc",
+	}
+
+	if by := q.Get("by"); by != "" {
+		if by == s.Column && !s.Desc {
+			s.Desc = true
+		} else {
+			s = Sort{Column: by}
+		}
+	}
+
+	if !slices.Contains(columns, s.Column) {
+		return Sort{}
+	}
+
+	return s
+}
+
 // view is the data passed to the templates.
 type view struct {
 	Columns []string
 	Rows    [][]string
 	Total   int                 // rows before filtering
+	Sort    Sort                // active sort order; the zero value means CSV order
 	Options map[string][]string // dropdown values per column; only the full page uses it
 }
 

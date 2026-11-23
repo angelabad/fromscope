@@ -1,0 +1,21 @@
+{{- /* Header cells: each one is a button that sorts by its column. The
+       active column also holds the sort state in hidden inputs, so the
+       form sends it with every request, filters included. */ -}}
+{{range .Columns}}
+<th scope="col" class="whitespace-nowrap border-b border-slate-200 px-3 py-2.5"
+    {{- if eq . $.Sort.Column}} aria-sort="{{if $.Sort.Desc}}descending{{else}}ascending{{end}}"{{end}}>
+  <button type="submit" name="by" value="{{.}}" title="Sort by {{.}}"
+          class="group inline-flex cursor-pointer items-center gap-1 uppercase tracking-wide hover:text-slate-900 focus:outline-none focus-visible:text-sky-700">
+    {{- .}}
+    {{- if eq . $.Sort.Column}}
+    <span aria-hidden="true" class="text-sky-600">{{if $.Sort.Desc}}▼{{else}}▲{{end}}</span>
+    {{- else}}
+    <span aria-hidden="true" class="text-slate-400 opacity-0 group-hover:opacity-100">▲</span>
+    {{- end}}
+  </button>
+  {{- if eq . $.Sort.Column}}
+  <input type="hidden" name="sort" value="{{.}}">
+  <input type="hidden" name="dir" value="{{if $.Sort.Desc}}desc{{else}}asc{{end}}">
+  {{- end}}
+</th>
+{{- end}}

@@ -46,8 +46,9 @@ func TestHandleIndex(t *testing.T) {
 
 	body := rec.Body.String()
 	for _, want := range []string{
-		">repo</th>",                            // header from Columns
-		">image</th>",                           // header from Columns
+		`name="by" value="repo"`,                // sort button per column
+		`name="by" value="image"`,               // sort button per column
+		`<button type="submit" hidden>`,         // default button for Enter
 		"alpine:3.20",                           // a cell value
 		">3</span> rows",                        // row counter, unfiltered
 		"&lt;script&gt;alert(1)&lt;/script&gt;", // HTML in cells is escaped
@@ -67,6 +68,9 @@ func TestHandleIndex(t *testing.T) {
 	}
 	if strings.Contains(body, "hx-swap-oob") {
 		t.Error("full page contains an out-of-band swap")
+	}
+	if strings.Contains(body, "aria-sort") {
+		t.Error("full page marks a column as sorted, want CSV order")
 	}
 }
 
@@ -156,6 +160,9 @@ func TestHandleRows(t *testing.T) {
 			if !strings.Contains(body, `id="count" hx-swap-oob="innerHTML"`) {
 				t.Error("body does not update the counter out of band")
 			}
+			if !strings.Contains(body, `id="head" hx-swap-oob="innerHTML"`) {
+				t.Error("body does not update the header row out of band")
+			}
 			for _, want := range tt.want {
 				if !strings.Contains(body, want) {
 					t.Errorf("body does not contain %q", want)
@@ -165,6 +172,90 @@ func TestHandleRows(t *testing.T) {
 				if strings.Contains(body, notWant) {
 					t.Errorf("body contains %q", notWant)
 				}
+			}
+		})
+	}
+}
+
+func TestHandleRowsSorted(t *testing.T) {
+	tests := []struct {
+		name     string
+		target   string
+		wantRepo []string // repo of every row, in order
+		wantHead []string // what the header row must contain
+	}{
+		{
+			name:     "no sort keeps the CSV order",
+			target:   "/rows",
+			wantRepo: []string{"app", "web", "api"},
+		},
+		{
+			name:     "click sorts ascending",
+			target:   "/rows?by=repo",
+			wantRepo: []string{"api", "app", "web"},
+			wantHead: []string{
+				`aria-sort="ascending"`,
+				`<input type="hidden" name="sort" value="repo">`,
+				`<input type="hidden" name="dir" value="asc">`,
+			},
+		},
+		{
+			name:     "second click sorts descending",
+			target:   "/rows?sort=repo&dir=asc&by=repo",
+			wantRepo: []string{"web", "app", "api"},
+			wantHead: []string{
+				`aria-sort="descending"`,
+				`<input type="hidden" name="dir" value="desc">`,
+			},
+		},
+		{
+			name:     "filtering keeps the order",
+			target:   "/rows?sort=repo&dir=desc&q=a",
+			wantRepo: []string{"web", "app", "api"},
+			wantHead: []string{`aria-sort="descending"`},
+		},
+		{
+			name:     "sorting keeps the filters",
+			target:   "/rows?rama=master&by=repo",
+			wantRepo: []string{"app"},
+			wantHead: []string{`aria-sort="ascending"`},
+		},
+		{
+			name:     "unknown column keeps the CSV order",
+			target:   "/rows?by=nope",
+			wantRepo: []string{"app", "web", "api"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := serve(t, newTestTable(), http.MethodGet, tt.target)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+			}
+			body := rec.Body.String()
+
+			// Each wanted repo must appear after the previous one.
+			rest := body
+			for _, repo := range tt.wantRepo {
+				i := strings.Index(rest, ">"+repo+"</td>")
+				if i == -1 {
+					t.Fatalf("rows are not in order %q: %q not found where expected", tt.wantRepo, repo)
+				}
+				rest = rest[i+1:]
+			}
+			if got := strings.Count(body, "<tr class="); got != len(tt.wantRepo) {
+				t.Errorf("got %d rows, want %d", got, len(tt.wantRepo))
+			}
+
+			for _, want := range tt.wantHead {
+				if !strings.Contains(body, want) {
+					t.Errorf("body does not contain %q", want)
+				}
+			}
+			if len(tt.wantHead) == 0 && strings.Contains(body, "aria-sort") {
+				t.Error("a column is marked as sorted, want none")
 			}
 		})
 	}
@@ -212,6 +303,77 @@ func TestFilterFromQuery(t *testing.T) {
 			}
 			if !maps.Equal(got.Equals, tt.want.Equals) {
 				t.Errorf("Equals = %q, want %q", got.Equals, tt.want.Equals)
+			}
+		})
+	}
+}
+
+func TestSortFromQuery(t *testing.T) {
+	columns := []string{"repo", "rama", "image"}
+
+	tests := []struct {
+		name  string
+		query url.Values
+		want  Sort
+	}{
+		{
+			name:  "no parameters",
+			query: url.Values{},
+			want:  Sort{},
+		},
+		{
+			name:  "current order, ascending",
+			query: url.Values{"sort": {"repo"}},
+			want:  Sort{Column: "repo"},
+		},
+		{
+			name:  "current order, descending",
+			query: url.Values{"sort": {"repo"}, "dir": {"desc"}},
+			want:  Sort{Column: "repo", Desc: true},
+		},
+		{
+			name:  "unknown dir is ascending",
+			query: url.Values{"sort": {"repo"}, "dir": {"DESC"}},
+			want:  Sort{Column: "repo"},
+		},
+		{
+			name:  "click without a current order sorts ascending",
+			query: url.Values{"by": {"rama"}},
+			want:  Sort{Column: "rama"},
+		},
+		{
+			name:  "click on the ascending column sorts descending",
+			query: url.Values{"sort": {"rama"}, "by": {"rama"}},
+			want:  Sort{Column: "rama", Desc: true},
+		},
+		{
+			name:  "click on the descending column sorts ascending",
+			query: url.Values{"sort": {"rama"}, "dir": {"desc"}, "by": {"rama"}},
+			want:  Sort{Column: "rama"},
+		},
+		{
+			name:  "click on another column sorts it ascending",
+			query: url.Values{"sort": {"rama"}, "dir": {"desc"}, "by": {"repo"}},
+			want:  Sort{Column: "repo"},
+		},
+		{
+			name:  "unknown current column is ignored",
+			query: url.Values{"sort": {"nope"}, "dir": {"desc"}},
+			want:  Sort{},
+		},
+		{
+			name:  "click on an unknown column is ignored",
+			query: url.Values{"sort": {"repo"}, "by": {"nope"}},
+			want:  Sort{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sortFromQuery(tt.query, columns)
+
+			if got != tt.want {
+				t.Errorf("sortFromQuery() = %+v, want %+v", got, tt.want)
 			}
 		})
 	}
