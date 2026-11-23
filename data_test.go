@@ -353,3 +353,85 @@ func TestValues(t *testing.T) {
 		})
 	}
 }
+
+func TestSort(t *testing.T) {
+	tests := []struct {
+		name string
+		sort Sort
+		want []string // "repo/rama" of the expected rows, in order
+	}{
+		{
+			name: "zero value keeps the CSV order",
+			sort: Sort{},
+			want: []string{"aem-atc/master", "web/develop", "api/development", "api/master"},
+		},
+		{
+			name: "unknown column keeps the CSV order",
+			sort: Sort{Column: "nope"},
+			want: []string{"aem-atc/master", "web/develop", "api/development", "api/master"},
+		},
+		{
+			name: "ascending, ties keep the CSV order",
+			sort: Sort{Column: "repo"},
+			want: []string{"aem-atc/master", "api/development", "api/master", "web/develop"},
+		},
+		{
+			name: "descending, ties keep the CSV order",
+			sort: Sort{Column: "repo", Desc: true},
+			want: []string{"web/develop", "api/development", "api/master", "aem-atc/master"},
+		},
+		{
+			name: "empty values first",
+			sort: Sort{Column: "imagen"},
+			want: []string{"api/master", "api/development", "aem-atc/master", "web/develop"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			table := newFilterTable()
+
+			got := table.Sort(tt.sort)
+
+			if !slices.Equal(got.Columns, table.Columns) {
+				t.Errorf("Columns = %q, want %q", got.Columns, table.Columns)
+			}
+			keys := []string{}
+			for _, row := range got.Rows {
+				keys = append(keys, row[0]+"/"+row[1])
+			}
+			if !slices.Equal(keys, tt.want) {
+				t.Errorf("rows = %q, want %q", keys, tt.want)
+			}
+		})
+	}
+}
+
+func TestSortDoesNotModifyTable(t *testing.T) {
+	table := newFilterTable()
+	want := newFilterTable()
+
+	got := table.Sort(Sort{Column: "repo", Desc: true})
+
+	if got.Rows[0][0] != "web" {
+		t.Fatalf("got first repo %q, want web", got.Rows[0][0])
+	}
+	if !slices.EqualFunc(table.Rows, want.Rows, slices.Equal) {
+		t.Errorf("Sort modified the table rows: %q", table.Rows)
+	}
+	if !slices.Equal(table.Columns, want.Columns) {
+		t.Errorf("Sort modified the table columns: %q", table.Columns)
+	}
+}
+
+func TestSortWithoutColumnReturnsCopy(t *testing.T) {
+	for _, s := range []Sort{{}, {Column: "nope"}} {
+		table := newFilterTable()
+
+		got := table.Sort(s)
+
+		if got == table || &got.Rows[0] == &table.Rows[0] {
+			t.Errorf("Sort(%+v) shares the receiver's rows, want a copy", s)
+		}
+	}
+}

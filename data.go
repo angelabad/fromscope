@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"encoding/csv"
 	"errors"
 	"fmt"
@@ -180,6 +181,36 @@ func matchRow(row []string, query string, conds []condition) bool {
 	return slices.ContainsFunc(row, func(cell string) bool {
 		return strings.Contains(strings.ToLower(cell), query)
 	})
+}
+
+// Sort holds a sort order. The zero value keeps the CSV order.
+type Sort struct {
+	Column string // column name; empty or unknown keeps the CSV order
+	Desc   bool   // descending instead of ascending
+}
+
+// Sort returns a new table with the rows sorted by s.
+// The receiver is never modified.
+func (t *Table) Sort(s Sort) *Table {
+	ordered := slices.Clone(t.Rows)
+
+	idx := t.ColumnIndex(s.Column)
+	if idx == -1 {
+		return &Table{Columns: t.Columns, Rows: ordered}
+	}
+
+	slices.SortStableFunc(ordered, func(a, b []string) int {
+		c := cmp.Compare(a[idx], b[idx])
+		if s.Desc {
+			return -c
+		}
+		return c
+	})
+
+	return &Table{
+		Columns: t.Columns,
+		Rows:    ordered,
+	}
 }
 
 // Values returns the distinct non-empty values of column, sorted.
