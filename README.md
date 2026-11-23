@@ -21,6 +21,7 @@ Early development. What works today:
 - Dropping rows whose `tiene_from` column is `no`, then hiding that column.
 - Serving the resulting table as a web page on `-addr` (default `:8080`).
 - Filtering the table from the page, without reloading it (see [Filtering](#filtering)).
+- Sorting the table by any column (see [Sorting](#sorting)).
 
 Planned:
 
@@ -60,6 +61,13 @@ go build
 
 Then open <http://localhost:8080> in your browser.
 
+### Flags
+
+| Flag    | Default | Description                         |
+|---------|---------|-------------------------------------|
+| `-csv`  | —       | CSV file to load (required)         |
+| `-addr` | `:8080` | TCP address to listen on            |
+
 ### Filtering
 
 The page has a global search box and a filter under each column header.
@@ -70,9 +78,10 @@ out of the total. A row is shown only if it matches every filter:
 - **Column filters**: case-insensitive substring of that column.
 - **`rama` column**: a dropdown with its distinct values, matched exactly.
 
-The filtered rows are served by `GET /rows` as an HTML fragment, which the page calls through
-htmx. It takes the same criteria as query parameters (`q` for the search, and
-one parameter per column name), so it can also be used directly:
+The filtered rows are served by `GET /rows` as an HTML fragment, which the
+page calls through htmx. It takes the same criteria as query parameters (`q`
+for the search, and one parameter per column name), so it can also be used
+directly:
 
 ```sh
 curl 'http://localhost:8080/rows?q=alpine&rama=master'
@@ -80,12 +89,25 @@ curl 'http://localhost:8080/rows?q=alpine&rama=master'
 
 Empty parameters and unknown column names are ignored.
 
-### Flags
+### Sorting
 
-| Flag    | Default | Description                         |
-|---------|---------|-------------------------------------|
-| `-csv`  | —       | CSV file to load (required)         |
-| `-addr` | `:8080` | TCP address to listen on            |
+Rows are shown in CSV order until you click a column header, which sorts the
+table by that column in ascending order. Clicking the same header again
+toggles between ascending and descending; an arrow marks the active column
+and its direction. The order is kept while you filter, and filters are kept
+when you change the order.
+
+Values are compared as plain text, byte by byte: uppercase sorts before
+lowercase and `10` before `9`. Rows with equal values keep their CSV order.
+
+`GET /rows` takes the order as query parameters: `sort` for the column and
+`dir` (`asc` or `desc`) for the direction. For example:
+
+```sh
+curl 'http://localhost:8080/rows?rama=master&sort=repositorio&dir=desc'
+```
+
+An unknown column keeps the CSV order.
 
 ## Development
 
