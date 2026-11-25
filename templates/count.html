@@ -1,2 +1,3 @@
-<span class="font-semibold text-slate-900 tabular-nums">{{len .Rows}}</span>
-{{- if lt (len .Rows) .Total}} of <span class="tabular-nums">{{.Total}}</span>{{end}} rows
+{{- if .Grouped}}<span class="font-semibold text-slate-900 tabular-nums">{{len .Rows}}</span> groups from {{end -}}
+<span class="font-semibold text-slate-900 tabular-nums">{{.Matched}}</span>
+{{- if lt .Matched .Total}} of <span class="tabular-nums">{{.Total}}</span>{{end}} rows

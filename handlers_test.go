@@ -56,6 +56,7 @@ func TestHandleIndex(t *testing.T) {
 		`name="q"`,                              // global search
 		`<input type="search" name="repo"`,      // text filter for a regular column
 		`<select name="rama"`,                   // dropdown for a dropdown column
+		`<input type="checkbox" name="group"`,   // group branches switch
 		"<option>develop</option>",              // dropdown values
 		"<option>development</option>",          // dropdown values
 	} {
@@ -71,6 +72,9 @@ func TestHandleIndex(t *testing.T) {
 	}
 	if strings.Contains(body, "aria-sort") {
 		t.Error("full page marks a column as sorted, want CSV order")
+	}
+	if strings.Contains(body, "checked") || strings.Contains(body, "groups from") {
+		t.Error("full page is grouped, want every row")
 	}
 }
 
@@ -256,6 +260,98 @@ func TestHandleRowsSorted(t *testing.T) {
 			}
 			if len(tt.wantHead) == 0 && strings.Contains(body, "aria-sort") {
 				t.Error("a column is marked as sorted, want none")
+			}
+		})
+	}
+}
+
+// newGroupedTestTable returns a table where the two "app" rows differ
+// only in rama, so they are merged when grouping.
+func newGroupedTestTable() *Table {
+	return &Table{
+		Columns: []string{"repo", "rama", "image"},
+		Rows: [][]string{
+			{"app", "master", "alpine:3.20"},
+			{"web", "master", "nginx:1.27"},
+			{"app", "develop", "alpine:3.20"},
+		},
+	}
+}
+
+func TestHandleRowsGrouped(t *testing.T) {
+	tests := []struct {
+		name     string
+		target   string
+		wantRows []string // "repo rama" of every row, in order
+		want     []string
+		notWant  []string
+	}{
+		{
+			name:     "without group every row is shown",
+			target:   "/rows",
+			wantRows: []string{"app master", "web master", "app develop"},
+			want:     []string{">3</span> rows"},
+			notWant:  []string{"groups from"},
+		},
+		{
+			name:     "group merges the branches",
+			target:   "/rows?group=on",
+			wantRows: []string{"app develop, master", "web master"},
+			want:     []string{">2</span> groups from ", ">3</span> rows"},
+		},
+		{
+			name:     "group is applied after the filters",
+			target:   "/rows?group=on&rama=develop",
+			wantRows: []string{"app develop"},
+			want:     []string{">1</span> groups from ", ">1</span> of ", ">3</span> rows"},
+		},
+		{
+			name:     "group is applied before sorting",
+			target:   "/rows?group=on&sort=repo&dir=desc",
+			wantRows: []string{"web master", "app develop, master"},
+			want:     []string{">2</span> groups from ", `aria-sort="descending"`},
+		},
+		{
+			name:     "group can be sorted by the merged column",
+			target:   "/rows?group=on&by=rama",
+			wantRows: []string{"app develop, master", "web master"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := serve(t, newGroupedTestTable(), http.MethodGet, tt.target)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+			}
+			body := rec.Body.String()
+
+			// Each wanted cell must appear after the previous one.
+			rest := body
+			for _, row := range tt.wantRows {
+				repo, rama, _ := strings.Cut(row, " ")
+				for _, cell := range []string{repo, rama} {
+					i := strings.Index(rest, ">"+cell+"</td>")
+					if i == -1 {
+						t.Fatalf("rows are not in order %q: %q not found where expected", tt.wantRows, row)
+					}
+					rest = rest[i+1:]
+				}
+			}
+			if got := strings.Count(body, "<tr class="); got != len(tt.wantRows) {
+				t.Errorf("got %d rows, want %d", got, len(tt.wantRows))
+			}
+
+			for _, want := range tt.want {
+				if !strings.Contains(body, want) {
+					t.Errorf("body does not contain %q", want)
+				}
+			}
+			for _, notWant := range tt.notWant {
+				if strings.Contains(body, notWant) {
+					t.Errorf("body contains %q", notWant)
+				}
 			}
 		})
 	}

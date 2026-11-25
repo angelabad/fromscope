@@ -60,26 +60,38 @@ func (s *server) handleIndex(w http.ResponseWriter, _ *http.Request) {
 	render(w, "index.html", view{
 		Columns: s.table.Columns,
 		Rows:    s.table.Rows,
+		Matched: len(s.table.Rows),
 		Total:   len(s.table.Rows),
 		Options: s.options,
 	})
 }
 
 // handleRows renders only the rows that match the query parameters,
-// sorted as they ask, plus the row counter and the header row as
-// out-of-band swaps.
+// grouped and sorted as they ask, plus the row counter and the header
+// row as out-of-band swaps.
 func (s *server) handleRows(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 
 	f := filterFromQuery(q, s.table.Columns)
 	order := sortFromQuery(q, s.table.Columns)
 
-	rows := s.table.Filter(f).Sort(order)
+	grouped := q.Get("group") != ""
+
+	rows := s.table.Filter(f)
+	matched := len(rows.Rows)
+
+	if grouped {
+		rows = rows.Group(groupColumn)
+	}
+
+	rows = rows.Sort(order)
 
 	render(w, "results.html", view{
 		Columns: rows.Columns,
 		Rows:    rows.Rows,
+		Matched: matched,
 		Total:   len(s.table.Rows),
+		Grouped: grouped,
 		Sort:    order,
 	})
 }
@@ -139,7 +151,9 @@ func sortFromQuery(q url.Values, columns []string) Sort {
 type view struct {
 	Columns []string
 	Rows    [][]string
+	Matched int                 // rows that match the filters, before grouping
 	Total   int                 // rows before filtering
+	Grouped bool                // rows are grouped by groupColumn
 	Sort    Sort                // active sort order; the zero value means CSV order
 	Options map[string][]string // dropdown values per column; only the full page uses it
 }
