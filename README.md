@@ -22,10 +22,11 @@ Early development. What works today:
 - Serving the resulting table as a web page on `-addr` (default `:8080`).
 - Filtering the table from the page, without reloading it (see [Filtering](#filtering)).
 - Sorting the table by any column (see [Sorting](#sorting)).
+- Grouping the rows that differ only in their branch (see [Grouping](#grouping)).
 
 Planned:
 
-- Groupings by column.
+- Exporting the filtered rows to CSV.
 - Support for arbitrary CSV formats.
 
 ## Expected CSV format
@@ -108,6 +109,23 @@ curl 'http://localhost:8080/rows?rama=master&sort=repositorio&dir=desc'
 ```
 
 An unknown column keeps the CSV order.
+
+### Grouping
+
+The **Group branches** switch merges the rows that are equal in every column
+except `rama` into a single row, whose `rama` cell lists their branches,
+sorted and without duplicates (for example `develop, main, master`). Rows that
+differ in any other column, such as `stage`, stay apart. The row counter then
+shows how many groups there are and how many rows they come from.
+
+Grouping is applied after the filters and before sorting: filters match the
+original rows, and sorting by `rama` compares the merged lists as text.
+
+`GET /rows` groups the rows when the `group` parameter is not empty:
+
+```sh
+curl 'http://localhost:8080/rows?group=on&q=alpine&sort=repositorio'
+```
 
 ## Development
 
