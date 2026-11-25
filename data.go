@@ -23,6 +23,13 @@ const (
 	noFromValue = "no"
 )
 
+// Rows that differ only in groupColumn can be merged into one row
+// that lists its values, joined with groupSeparator.
+const (
+	groupColumn    = "rama"
+	groupSeparator = ", "
+)
+
 // dropdownColumns are filtered with a dropdown of their distinct values
 // and an exact match, instead of a free-text "contains" search.
 var dropdownColumns = []string{"rama"}
@@ -181,6 +188,45 @@ func matchRow(row []string, query string, conds []condition) bool {
 	return slices.ContainsFunc(row, func(cell string) bool {
 		return strings.Contains(strings.ToLower(cell), query)
 	})
+}
+
+// Group returns a new table where the rows that are equal in every
+// column except column are merged into one row. That row's cell in
+// column lists the distinct values, sorted and joined with groupSeparator.
+// Groups keep the order of their first row. An empty or unknown column
+// returns an unsorted copy, like Sort. The receiver is never modified.
+func (t *Table) Group(column string) *Table {
+	idx := t.ColumnIndex(column)
+	if idx == -1 {
+		return &Table{Columns: t.Columns, Rows: slices.Clone(t.Rows)}
+	}
+
+	index := make(map[string]int) // group key -> position in rows and values
+	var rows [][]string           // one row per group, in order of first appearance
+	var values [][]string         // values[i] holds the column values of rows[i]
+
+	for _, row := range t.Rows {
+		// The key is every cell but the grouped one. Delete works on a
+		// clone because it would shift the cells of the shared row.
+		key := strings.Join(slices.Delete(slices.Clone(row), idx, idx+1), "\x00")
+
+		i, ok := index[key]
+		if !ok {
+			i = len(rows)
+			index[key] = i
+			rows = append(rows, slices.Clone(row)) // cloned: its cell is overwritten below
+			values = append(values, nil)
+		}
+
+		values[i] = append(values[i], row[idx])
+	}
+
+	for i, v := range values {
+		slices.Sort(v)
+		rows[i][idx] = strings.Join(slices.Compact(v), groupSeparator)
+	}
+
+	return &Table{Columns: t.Columns, Rows: rows}
 }
 
 // Sort holds a sort order. The zero value keeps the CSV order.

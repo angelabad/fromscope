@@ -354,6 +354,113 @@ func TestValues(t *testing.T) {
 	}
 }
 
+// newGroupTable returns a table where rows 0 and 2 differ only in rama,
+// row 3 differs from them in stage too, and row 4 duplicates row 1.
+func newGroupTable() *Table {
+	return &Table{
+		Columns: []string{"repo", "rama", "imagen", "stage"},
+		Rows: [][]string{
+			{"app", "master", "alpine:3.20", ""},
+			{"web", "develop", "nginx:1.27", ""},
+			{"app", "develop", "alpine:3.20", ""},
+			{"app", "main", "alpine:3.20", "builder"},
+			{"web", "develop", "nginx:1.27", ""},
+		},
+	}
+}
+
+func TestGroup(t *testing.T) {
+	tests := []struct {
+		name   string
+		column string
+		want   [][]string
+	}{
+		{
+			name:   "merges rows that differ only in the column",
+			column: "rama",
+			want: [][]string{
+				{"app", "develop, master", "alpine:3.20", ""}, // values sorted
+				{"web", "develop", "nginx:1.27", ""},          // duplicates removed
+				{"app", "main", "alpine:3.20", "builder"},     // other stage, own group
+			},
+		},
+		{
+			name:   "works with any column",
+			column: "stage",
+			want: [][]string{
+				{"app", "master", "alpine:3.20", ""},
+				{"web", "develop", "nginx:1.27", ""},
+				{"app", "develop", "alpine:3.20", ""},
+				{"app", "main", "alpine:3.20", "builder"},
+			},
+		},
+		{
+			name:   "empty column keeps every row",
+			column: "",
+			want:   newGroupTable().Rows,
+		},
+		{
+			name:   "unknown column keeps every row",
+			column: "nope",
+			want:   newGroupTable().Rows,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			table := newGroupTable()
+
+			got := table.Group(tt.column)
+
+			if !slices.Equal(got.Columns, table.Columns) {
+				t.Errorf("Columns = %q, want %q", got.Columns, table.Columns)
+			}
+			if !slices.EqualFunc(got.Rows, tt.want, slices.Equal) {
+				t.Errorf("Rows = %q, want %q", got.Rows, tt.want)
+			}
+		})
+	}
+}
+
+func TestGroupEmptyTable(t *testing.T) {
+	table := &Table{Columns: []string{"repo", "rama"}}
+
+	got := table.Group("rama")
+
+	if len(got.Rows) != 0 {
+		t.Errorf("Rows = %q, want none", got.Rows)
+	}
+}
+
+func TestGroupDoesNotModifyTable(t *testing.T) {
+	table := newGroupTable()
+	want := newGroupTable()
+
+	got := table.Group("rama")
+
+	if got.Rows[0][1] != "develop, master" {
+		t.Fatalf("got first rama %q, want %q", got.Rows[0][1], "develop, master")
+	}
+	if !slices.EqualFunc(table.Rows, want.Rows, slices.Equal) {
+		t.Errorf("Group modified the table rows: %q", table.Rows)
+	}
+	if !slices.Equal(table.Columns, want.Columns) {
+		t.Errorf("Group modified the table columns: %q", table.Columns)
+	}
+}
+
+func TestGroupWithoutColumnReturnsCopy(t *testing.T) {
+	for _, column := range []string{"", "nope"} {
+		table := newGroupTable()
+
+		got := table.Group(column)
+
+		if got == table || &got.Rows[0] == &table.Rows[0] {
+			t.Errorf("Group(%q) shares the receiver's rows, want a copy", column)
+		}
+	}
+}
+
 func TestSort(t *testing.T) {
 	tests := []struct {
 		name string
